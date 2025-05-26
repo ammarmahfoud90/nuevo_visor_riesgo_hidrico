@@ -115,7 +115,8 @@
       if (layer) map.removeLayer(layer);
       if (!depto) return;
       map.getContainer().style.cursor = 'progress';
-      fetch(`/api/riesgo/departamentos?depto=${encodeURIComponent(depto)}`)
+      const fileName = depto.replace(/ /g, '_') + '.geojson';
+fetch(`departamentos/${fileName}`)
         .then(res => res.json())
         .then(geojson => {
           const simplified = turf.simplify(geojson, { tolerance: 0.001, highQuality: false });
