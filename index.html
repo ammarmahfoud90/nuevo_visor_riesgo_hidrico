@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Visor de Riesgo Hídrico – APA</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Turf.js para simplificación y análisis espacial -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    .apa-title {
+      background: rgba(255,255,255,0.9);
+      padding: 4px 10px;
+      font-weight: bold;
+      border-radius: 6px;
+      box-shadow: 0 0 4px rgba(0,0,0,0.3);
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+    }
+    .legend {
+      background: rgba(255,255,255,0.9);
+      padding: 6px 8px;
+      border-radius: 6px;
+      box-shadow: 0 0 4px rgba(0,0,0,0.3);
+      line-height: 18px;
+      margin-top: 40px;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+    }
+    .legend i {
+      width: 18px;
+      height: 18px;
+      float: left;
+      margin-right: 8px;
+      opacity: 0.7;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.8);
+      padding: 8px;
+      border-radius: 4px;
+    }
+    #controls select, #controls button {
+      margin-right: 6px;
+      padding: 4px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+  <div id="controls">
+    <select id="deptSelect">
+      <option value="">— Seleccione un departamento —</option>
+    </select>
+    <button id="locateBtn">Mi ubicación</button>
+  </div>
+  <div class="apa-title">Administración Provincial del Agua</div>
+  <div class="legend">
+    <i style="background:#00008B"></i>Riesgo Severo de Inundación<br>
+    <i style="background:#FF0000"></i>Riesgo Alto de Inundación<br>
+    <i style="background:#FFA500"></i>Riesgo Moderado de Inundación<br>
+    <i style="background:#FFFF00"></i>Riesgo Leve de Inundación<br>
+  </div>
+
+  <script>
+    // Función para asignar color según etiqueta
+    function getColor(label) {
+      if (!label) return '#ffffff';
+      const texto = label.toLowerCase();
+      if (texto.includes('severo'))   return '#00008B';
+      if (texto.includes('alto'))     return '#FF0000';
+      if (texto.includes('moderado')) return '#FFA500';
+      if (texto.includes('leve'))     return '#FFFF00';
+      return '#ffffff';
+    }
+
+    // Inicializar mapa
+    const map = L.map('map').setView([-27.3, -60.7], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let layer;
+
+    // Cargar lista de departamentos
+    fetch('/api/riesgo/departamentos/list')
+      .then(res => res.json())
+      .then(deptos => {
+        const select = document.getElementById('deptSelect');
+        deptos.forEach(d => {
+          const option = document.createElement('option');
+          option.value = d;
+          option.text = d;
+          select.add(option);
+        });
+      });
+
+    // Función de carga y simplificación
+    function loadDepartamento(depto) {
+      if (layer) map.removeLayer(layer);
+      if (!depto) return;
+      map.getContainer().style.cursor = 'progress';
+      fetch(`/api/riesgo/departamentos?depto=${encodeURIComponent(depto)}`)
+        .then(res => res.json())
+        .then(geojson => {
+          const simplified = turf.simplify(geojson, { tolerance: 0.001, highQuality: false });
+          layer = L.geoJson(simplified, {
+            style: feature => ({
+              fillColor: getColor(feature.properties.R_HID_1),
+              color: '#000', weight: 1, opacity: 1, fillOpacity: 0.7
+            }),
+            onEachFeature: (feature, lyr) => {
+              const label = feature.properties.R_HID_1 || 'Sin dato';
+              lyr.bindPopup(`<b>${feature.properties.N_DPTO}</b><br>${label}`);
+            }
+          }).addTo(map);
+          map.fitBounds(layer.getBounds());
+        })
+        .catch(console.error)
+        .finally(() => map.getContainer().style.cursor = '');
+    }
+
+    // Evento de selección de departamento
+    document.getElementById('deptSelect').addEventListener('change', e => {
+      loadDepartamento(e.target.value);
+    });
+
+    // Botón de geolocalización
+    document.getElementById('locateBtn').addEventListener('click', () => {
+      if (!navigator.geolocation) return alert('Geolocalización no soportada');
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const { latitude, longitude } = pos.coords;
+          const marker = L.marker([latitude, longitude]).addTo(map);
+          marker.bindPopup('Ubicación detectada').openPopup();
+          map.setView([latitude, longitude], 12);
+          // Obtener zona de riesgo
+          fetch(`/api/riesgo/point?lat=${latitude}&lng=${longitude}`)
+            .then(res => res.json())
+            .then(data => {
+              const zona = data.R_HID_1 || 'Zona de riesgo no disponible';
+              marker.bindPopup(`<b>${zona}</b>`).openPopup();
+            })
+            .catch(err => {
+              console.error(err);
+              marker.bindPopup('Error al obtener zona de riesgo').openPopup();
+            });
+        }, err => alert('Error al obtener ubicación: ' + err.message)
+      );
+    });
+  </script>
+
+</body>
+</html>
