@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Turf.js para simplificación y análisis espacial -->
+  <!-- Turf.js para simplificación -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <style>
@@ -65,6 +65,25 @@
   <div id="controls">
     <select id="deptSelect">
       <option value="">— Seleccione un departamento —</option>
+      <option value="12_de_octubre">12 de Octubre</option>
+      <option value="25_de_mayo">25 de Mayo</option>
+      <option value="2_de_abril">2 de Abril</option>
+      <option value="9_de_julio">9 de Julio</option>
+      <option value="bermejo">Bermejo</option>
+      <option value="chacabuco">Chacabuco</option>
+      <option value="comandante_fernandez">Comandante Fernández</option>
+      <option value="fray_justo_santa_maria_de_oro">Fray Justo Santa María de Oro</option>
+      <option value="general_belgrano">General Belgrano</option>
+      <option value="general_guemes">General Güemes</option>
+      <option value="independencia">Independencia</option>
+      <option value="libertador_general_san_martin">Libertador General San Martín</option>
+      <option value="maipu">Maipú</option>
+      <option value="mayor_luis_jorge_fontana">Mayor Luis Jorge Fontana</option>
+      <option value="ohiggins">O'Higgins</option>
+      <option value="presidente_de_la_plaza">Presidente de la Plaza</option>
+      <option value="quilitilpi">Quitilipi</option>
+      <option value="san_lorenzo">San Lorenzo</option>
+      <option value="sargento_cabral">Sargento Cabral</option>
     </select>
     <button id="locateBtn">Mi ubicación</button>
   </div>
@@ -77,7 +96,6 @@
   </div>
 
   <script>
-    // Función para asignar color según etiqueta
     function getColor(label) {
       if (!label) return '#ffffff';
       const texto = label.toLowerCase();
@@ -88,7 +106,6 @@
       return '#ffffff';
     }
 
-    // Inicializar mapa
     const map = L.map('map').setView([-27.3, -60.7], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
@@ -97,51 +114,36 @@
 
     let layer;
 
-    // Cargar lista de departamentos
-    fetch('/api/riesgo/departamentos/list')
-      .then(res => res.json())
-      .then(deptos => {
-        const select = document.getElementById('deptSelect');
-        deptos.forEach(d => {
-          const option = document.createElement('option');
-          option.value = d;
-          option.text = d;
-          select.add(option);
-        });
-      });
-
-    // Función de carga y simplificación
-    function loadDepartamento(depto) {
-      if (layer) map.removeLayer(layer);
+    document.getElementById('deptSelect').addEventListener('change', e => {
+      const depto = e.target.value;
       if (!depto) return;
+      if (layer) map.removeLayer(layer);
+
+      const fileName = depto + '.geojson';
       map.getContainer().style.cursor = 'progress';
-      const fileName = depto.replace(/ /g, '_') + '.geojson';
-fetch(`departamentos/${fileName}`)
+      fetch(`departamentos/${fileName}`)
         .then(res => res.json())
         .then(geojson => {
           const simplified = turf.simplify(geojson, { tolerance: 0.001, highQuality: false });
           layer = L.geoJson(simplified, {
-            style: feature => ({
-              fillColor: getColor(feature.properties.R_HID_1),
-              color: '#000', weight: 1, opacity: 1, fillOpacity: 0.7
+            style: f => ({
+              fillColor: getColor(f.properties.R_HID_1),
+              color: '#000', weight: 1, fillOpacity: 0.7
             }),
-            onEachFeature: (feature, lyr) => {
-              const label = feature.properties.R_HID_1 || 'Sin dato';
-              lyr.bindPopup(`<b>${feature.properties.N_DPTO}</b><br>${label}`);
+            onEachFeature: (f, l) => {
+              const label = f.properties.R_HID_1 || 'Sin dato';
+              l.bindPopup(`<b>${f.properties.N_DPTO}</b><br>${label}`);
             }
           }).addTo(map);
           map.fitBounds(layer.getBounds());
         })
-        .catch(console.error)
+        .catch(err => {
+          console.error(err);
+          alert('No se pudo cargar el archivo del departamento');
+        })
         .finally(() => map.getContainer().style.cursor = '');
-    }
-
-    // Evento de selección de departamento
-    document.getElementById('deptSelect').addEventListener('change', e => {
-      loadDepartamento(e.target.value);
     });
 
-    // Botón de geolocalización
     document.getElementById('locateBtn').addEventListener('click', () => {
       if (!navigator.geolocation) return alert('Geolocalización no soportada');
       navigator.geolocation.getCurrentPosition(
@@ -150,21 +152,10 @@ fetch(`departamentos/${fileName}`)
           const marker = L.marker([latitude, longitude]).addTo(map);
           marker.bindPopup('Ubicación detectada').openPopup();
           map.setView([latitude, longitude], 12);
-          // Obtener zona de riesgo
-          fetch(`/api/riesgo/point?lat=${latitude}&lng=${longitude}`)
-            .then(res => res.json())
-            .then(data => {
-              const zona = data.R_HID_1 || 'Zona de riesgo no disponible';
-              marker.bindPopup(`<b>${zona}</b>`).openPopup();
-            })
-            .catch(err => {
-              console.error(err);
-              marker.bindPopup('Error al obtener zona de riesgo').openPopup();
-            });
-        }, err => alert('Error al obtener ubicación: ' + err.message)
+        },
+        err => alert('Error al obtener ubicación: ' + err.message)
       );
     });
   </script>
-
 </body>
 </html>
