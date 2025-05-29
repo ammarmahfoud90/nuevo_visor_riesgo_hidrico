@@ -9,58 +9,40 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Turf.js (opcional) -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <style>
-    /* Ajustes generales y tipografía */
     html, body {
       height: 100%;
       margin: 0;
       padding: 0;
-      font-size: 16px; /* base legible */
+      font-size: 16px;
     }
     #map { height: 100%; }
 
-    /* Título: centrado arriba, sin cubrir controles */
-    .apa-title {
-      background: rgba(255,255,255,0.95);
-      padding: 6px 12px;
-      font-size: 1.25rem; /* ≈20px */
-      font-weight: bold;
-      border-radius: 6px;
-      box-shadow: 0 0 4px rgba(0,0,0,0.3);
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1200;
-      white-space: nowrap;
-      pointer-events: none; /* evita tapar clics */
-    }
-
-    /* Controles en la esquina superior‑izquierda, debajo del título */
+    /* Controles (select + botón) */
     #controls {
       position: absolute;
-      top: 60px;   /* separa del título */
+      top: 10px;
       left: 10px;
       z-index: 1100;
       background: rgba(255,255,255,0.85);
       padding: 10px;
       border-radius: 6px;
-      font-size: 1rem;
       box-shadow: 0 0 4px rgba(0,0,0,0.25);
+      font-size: 1rem;
+      max-width: 280px;
     }
     #controls select,
     #controls button {
       margin-bottom: 6px;
       padding: 6px 8px;
       font-size: 1rem;
-      width: 100%; /* ocupa ancho del panel */
+      width: 100%;
     }
     #controls button { margin-top: 4px; }
 
-    /* Leyenda: esquina superior‑derecha, alineada con controles */
+    /* Leyenda principal */
     .legend {
       background: rgba(255,255,255,0.95);
       padding: 10px 12px;
@@ -69,9 +51,9 @@
       line-height: 22px;
       font-size: 1rem;
       position: absolute;
-      top: 60px;   /* misma altura que controles */
       right: 10px;
-      z-index: 1100;
+      bottom: 60px;
+      z-index: 1000;
       max-width: 280px;
     }
     .legend i {
@@ -84,12 +66,41 @@
     .legend-header { font-weight: bold; display: block; margin-bottom: 6px; }
     .legend-sub    { display: block; margin-bottom: 8px; }
 
-    /* Ajustes responsivos para pantallas muy pequeñas */
+    /* Título inferior */
+    .apa-title {
+      background: rgba(255,255,255,0.95);
+      padding: 6px 12px;
+      font-size: 1.25rem;
+      font-weight: bold;
+      border-radius: 6px;
+      box-shadow: 0 0 4px rgba(0,0,0,0.3);
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* Ajustes móviles */
     @media (max-width: 480px) {
       html { font-size: 15px; }
+
+      /* Reubicamos leyenda bajo los controles para evitar solaparse */
+      .legend {
+        top: 120px;      /* empieza debajo de los controles */
+        left: 10px;
+        right: auto;
+        bottom: auto;
+        width: calc(100% - 20px); /* ancho casi completo */
+        max-width: none;
+        font-size: 0.95rem;
+        line-height: 20px;
+      }
+
+      #controls { font-size: 0.95rem; max-width: none; width: calc(100% - 20px); }
       .apa-title { font-size: 1.1rem; }
-      .legend { font-size: 0.95rem; line-height: 20px; }
-      #controls { font-size: 0.95rem; }
     }
   </style>
 </head>
@@ -97,10 +108,6 @@
 
   <div id="map"></div>
 
-  <!-- Título principal -->
-  <div class="apa-title">Administración Provincial del Agua</div>
-
-  <!-- Controles de selección / ubicación -->
   <div id="controls">
     <select id="deptSelect">
       <option value="">— Seleccione un departamento —</option>
@@ -127,7 +134,6 @@
     <button id="locateBtn">Mi ubicación</button>
   </div>
 
-  <!-- Leyenda -->
   <div class="legend">
     <span class="legend-header">Provincia del Chaco</span>
     <span class="legend-sub">Riesgo Hídrico por Departamento</span>
@@ -137,8 +143,9 @@
     <i style="background:#FFFF00"></i>Riesgo Leve de Inundación<br>
   </div>
 
+  <div class="apa-title">Administración Provincial del Agua</div>
+
   <script>
-    /* Colores por etiqueta */
     function getColor(label) {
       if (!label) return '#ffffff';
       const t = label.toLowerCase();
@@ -149,7 +156,6 @@
       return '#ffffff';
     }
 
-    /* Inicialización del mapa */
     const map = L.map('map').setView([-27.3, -60.7], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
@@ -158,15 +164,12 @@
 
     let layer;
 
-    /* Cambio de departamento */
     document.getElementById('deptSelect').addEventListener('change', e => {
       const depto = e.target.value;
       if (!depto) return;
       if (layer) map.removeLayer(layer);
 
-      const fileName = `${depto}.geojson`;
-      map.getContainer().style.cursor = 'progress';
-      fetch(`departamentos/${fileName}`)
+      fetch(`departamentos/${depto}.geojson`)
         .then(r => r.json())
         .then(geo => {
           layer = L.geoJson(geo, {
@@ -183,14 +186,9 @@
           }).addTo(map);
           map.fitBounds(layer.getBounds());
         })
-        .catch(err => {
-          console.error(err);
-          alert('No se pudo cargar el archivo del departamento');
-        })
-        .finally(() => map.getContainer().style.cursor = '');
+        .catch(() => alert('No se pudo cargar el archivo del departamento'));
     });
 
-    /* Botón de geolocalización */
     document.getElementById('locateBtn').addEventListener('click', () => {
       if (!navigator.geolocation) return alert('Geolocalización no soportada');
       navigator.geolocation.getCurrentPosition(
