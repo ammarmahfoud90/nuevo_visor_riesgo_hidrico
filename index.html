@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Turf.js (ya no usado, puede quedar si se usa en otra parte) -->
+  <!-- Turf.js (opcional) -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <style>
@@ -18,31 +18,13 @@
       height: 100%;
       margin: 0;
       padding: 0;
-      font-size: 16px; /* base legible en móviles */
+      font-size: 16px; /* base legible */
     }
     #map { height: 100%; }
 
-    /* Controles en la esquina superior-izquierda */
-    #controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1000;
-      background: rgba(255,255,255,0.85);
-      padding: 10px;
-      border-radius: 6px;
-      font-size: 1rem;
-      box-shadow: 0 0 4px rgba(0,0,0,0.25);
-    }
-    #controls select, #controls button {
-      margin-right: 8px;
-      padding: 6px 8px;
-      font-size: 1rem;
-    }
-
-    /* Título: centrado arriba */
+    /* Título: centrado arriba, sin cubrir controles */
     .apa-title {
-      background: rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.95);
       padding: 6px 12px;
       font-size: 1.25rem; /* ≈20px */
       font-weight: bold;
@@ -52,23 +34,45 @@
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 1000;
+      z-index: 1200;
       white-space: nowrap;
+      pointer-events: none; /* evita tapar clics */
     }
 
-    /* Leyenda: desplazada más abajo para no tapar controles ni título */
+    /* Controles en la esquina superior‑izquierda, debajo del título */
+    #controls {
+      position: absolute;
+      top: 60px;   /* separa del título */
+      left: 10px;
+      z-index: 1100;
+      background: rgba(255,255,255,0.85);
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 1rem;
+      box-shadow: 0 0 4px rgba(0,0,0,0.25);
+    }
+    #controls select,
+    #controls button {
+      margin-bottom: 6px;
+      padding: 6px 8px;
+      font-size: 1rem;
+      width: 100%; /* ocupa ancho del panel */
+    }
+    #controls button { margin-top: 4px; }
+
+    /* Leyenda: esquina superior‑derecha, alineada con controles */
     .legend {
-      background: rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.95);
       padding: 10px 12px;
       border-radius: 6px;
       box-shadow: 0 0 4px rgba(0,0,0,0.3);
       line-height: 22px;
       font-size: 1rem;
       position: absolute;
-      top: 60px;   /* debajo del título */
+      top: 60px;   /* misma altura que controles */
       right: 10px;
-      z-index: 1000;
-      max-width: 260px;
+      z-index: 1100;
+      max-width: 280px;
     }
     .legend i {
       width: 20px;
@@ -77,15 +81,8 @@
       margin-right: 8px;
       opacity: 0.7;
     }
-    .legend-header {
-      font-weight: bold;
-      margin-bottom: 6px;
-      display: block;
-    }
-    .legend-sub {
-      margin-bottom: 8px;
-      display: block;
-    }
+    .legend-header { font-weight: bold; display: block; margin-bottom: 6px; }
+    .legend-sub    { display: block; margin-bottom: 8px; }
 
     /* Ajustes responsivos para pantallas muy pequeñas */
     @media (max-width: 480px) {
@@ -93,13 +90,15 @@
       .apa-title { font-size: 1.1rem; }
       .legend { font-size: 0.95rem; line-height: 20px; }
       #controls { font-size: 0.95rem; }
-      #controls select, #controls button { font-size: 0.95rem; }
     }
   </style>
 </head>
 <body>
 
   <div id="map"></div>
+
+  <!-- Título principal -->
+  <div class="apa-title">Administración Provincial del Agua</div>
 
   <!-- Controles de selección / ubicación -->
   <div id="controls">
@@ -128,9 +127,6 @@
     <button id="locateBtn">Mi ubicación</button>
   </div>
 
-  <!-- Título principal -->
-  <div class="apa-title">Administración Provincial del Agua</div>
-
   <!-- Leyenda -->
   <div class="legend">
     <span class="legend-header">Provincia del Chaco</span>
@@ -145,11 +141,11 @@
     /* Colores por etiqueta */
     function getColor(label) {
       if (!label) return '#ffffff';
-      const texto = label.toLowerCase();
-      if (texto.includes('severo'))   return '#00008B';
-      if (texto.includes('alto'))     return '#FF0000';
-      if (texto.includes('moderado')) return '#FFA500';
-      if (texto.includes('leve'))     return '#FFFF00';
+      const t = label.toLowerCase();
+      if (t.includes('severo'))   return '#00008B';
+      if (t.includes('alto'))     return '#FF0000';
+      if (t.includes('moderado')) return '#FFA500';
+      if (t.includes('leve'))     return '#FFFF00';
       return '#ffffff';
     }
 
@@ -168,21 +164,21 @@
       if (!depto) return;
       if (layer) map.removeLayer(layer);
 
-      const fileName = depto + '.geojson';
+      const fileName = `${depto}.geojson`;
       map.getContainer().style.cursor = 'progress';
       fetch(`departamentos/${fileName}`)
-        .then(res => res.json())
-        .then(geojson => {
-          layer = L.geoJson(geojson, {
+        .then(r => r.json())
+        .then(geo => {
+          layer = L.geoJson(geo, {
             style: f => ({
               fillColor: getColor(f.properties.R_HID_1),
-              color: '#000000',
+              color: '#000',
               weight: 0.5,
               fillOpacity: 0.85
             }),
             onEachFeature: (f, l) => {
-              const label = f.properties.R_HID_1 || 'Sin dato';
-              l.bindPopup(`<b>${f.properties.N_DPTO}</b><br>${label}`);
+              const lbl = f.properties.R_HID_1 || 'Sin dato';
+              l.bindPopup(`<b>${f.properties.N_DPTO}</b><br>${lbl}`);
             }
           }).addTo(map);
           map.fitBounds(layer.getBounds());
