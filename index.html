@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Visor de Riesgo Hídrico – APA</title>
 
   <!-- Leaflet CSS -->
@@ -12,10 +13,20 @@
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <style>
-    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    /* Tamaño de fuente base aumentado para mejor lectura en móviles */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-size: 16px; /* antes era el valor por defecto (≈14‑15px) */
+    }
+    #map { height: 100%; }
+
+    /* Títulos y paneles; se incrementa la fuente y se asegura legibilidad */
     .apa-title {
       background: rgba(255,255,255,0.9);
-      padding: 4px 10px;
+      padding: 6px 12px;
+      font-size: 1.25rem; /* ≈20px */
       font-weight: bold;
       border-radius: 6px;
       box-shadow: 0 0 4px rgba(0,0,0,0.3);
@@ -26,10 +37,11 @@
     }
     .legend {
       background: rgba(255,255,255,0.9);
-      padding: 6px 8px;
+      padding: 8px 10px;
       border-radius: 6px;
       box-shadow: 0 0 4px rgba(0,0,0,0.3);
-      line-height: 18px;
+      line-height: 22px; /* se agranda el interlineado */
+      font-size: 1rem;   /* 16px */
       margin-top: 40px;
       position: absolute;
       top: 10px;
@@ -37,31 +49,43 @@
       z-index: 1000;
     }
     .legend i {
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       float: left;
       margin-right: 8px;
       opacity: 0.7;
     }
+
+    /* Controles de selección y botón */
     #controls {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 1000;
       background: rgba(255,255,255,0.8);
-      padding: 8px;
-      border-radius: 4px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 1rem; /* 16px */
     }
     #controls select, #controls button {
-      margin-right: 6px;
-      padding: 4px;
-      font-size: 14px;
+      margin-right: 8px;
+      padding: 6px 8px;
+      font-size: 1rem; /* 16px */
+    }
+
+    /* Ajuste opcional para pantallas muy pequeñas */
+    @media (max-width: 480px) {
+      .apa-title { font-size: 1.1rem; }
+      .legend { font-size: 0.95rem; line-height: 20px; }
+      #controls { font-size: 0.95rem; }
+      #controls select, #controls button { font-size: 0.95rem; }
     }
   </style>
 </head>
 <body>
 
   <div id="map"></div>
+
   <div id="controls">
     <select id="deptSelect">
       <option value="">— Seleccione un departamento —</option>
@@ -87,7 +111,9 @@
     </select>
     <button id="locateBtn">Mi ubicación</button>
   </div>
+
   <div class="apa-title">Administración Provincial del Agua</div>
+
   <div class="legend">
     <i style="background:#00008B"></i>Riesgo Severo de Inundación<br>
     <i style="background:#FF0000"></i>Riesgo Alto de Inundación<br>
